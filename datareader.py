@@ -1,10 +1,27 @@
 import sys
 import os
 import random
-
+import re
 import torch
 import torch.nn as nn
+para_length_list = []
+explicit_count = 0
+implicit_filter_count = 0
+explicit_filter_count = 0
+double_label_count = 0
+def update_doc_discourse_dict(doc_discourse_dict, split_sentence_index):
+	new_doc_discourse_dict = {}
 
+	for argpair in doc_discourse_dict:
+		arg1_index,arg2_index = argpair[0],argpair[1]
+		discourse_type,discourse_label = doc_discourse_dict[argpair][0],doc_discourse_dict[argpair][1]
+
+		if arg2_index <= split_sentence_index:
+			new_doc_discourse_dict[argpair] = (discourse_type,discourse_label)
+		else:
+			new_doc_discourse_dict[(arg1_index+1,arg2_index+1)] = (discourse_type,discourse_label)
+
+	return new_doc_discourse_dict
 def sentence_contain_arg(sentence,arg):
 	sentence = re.sub('[^\w\s]','',sentence).split()
 	arg = re.sub('[^\w\s]','',arg).split()
@@ -16,6 +33,13 @@ def sentence_contain_arg(sentence,arg):
 			return False
 	
 	return True
+def split_arg(arg,doc_sentence_list):
+	for i in range(1,len(arg)):
+		if arg[i]== ' ':
+			if search_sentence_index(doc_sentence_list,arg[i+1:],0) > search_sentence_index(doc_sentence_list,arg[:i],0):
+				arg = [arg[:i], arg[i:]]
+				break
+	return arg
 
 def search_sentence_index(doc_sentence_list,arg,start):
 	for i in range(start,len(doc_sentence_list)):
@@ -152,6 +176,243 @@ def extract_implicit_relation(pipe_file_lines,doc_sentence_list,doc_discourse_di
 			#print doc_sentence_list[arg2_index]
 
 	return doc_sentence_list, doc_discourse_dict
+def extract_explicit_relation(pipe_file_lines,doc_sentence_list,doc_discourse_dict,doc_paragraph_first_sentence_list):
+	global explicit_count,double_label_count,explicit_filter_count
+
+	prev_index = 0
+	for i in range(0,len(pipe_file_lines)):
+		pipe_line = pipe_file_lines[i].split('|')
+		discourse_type = pipe_line[0]
+		if discourse_type not in ['Explicit']:
+			continue
+
+		discourse_label = pipe_line[11]
+		#catch double label
+		if pipe_line[12] != '':
+			double_label_count = double_label_count + 1
+			discourse_label = discourse_label + '|' + pipe_line[12]
+		if pipe_line[13] != '':
+			double_label_count = double_label_count + 1
+			discourse_label = discourse_label + '|' + pipe_line[13]
+
+		connective = pipe_line[5]
+		assert len(connective) > 0
+		arg1 = pipe_line[24]
+		arg2 = pipe_line[34]
+
+		
+
+		arg1_index =  search_sentence_index(doc_sentence_list,arg1,prev_index)
+		arg2_index =  search_sentence_index(doc_sentence_list,arg2,prev_index)
+
+		if arg1_index == -1 or arg2_index == -1:
+			if arg1_index == -1:
+				arg1 = split_arg(arg1,doc_sentence_list)
+				if type(arg1) == type([]):
+					arg1 = arg1[-1]
+				arg1_index =  search_sentence_index(doc_sentence_list,arg1,prev_index)
+
+			if arg2_index == -1:
+				arg2 = split_arg(arg2,doc_sentence_list)			
+				if type(arg2) == type([]):
+					arg2 = arg2[0]
+				arg2_index =  search_sentence_index(doc_sentence_list,arg2,prev_index)
+
+		if arg1_index == -1:
+			arg1_index =  search_sentence_index(doc_sentence_list,arg1,0)
+		if arg2_index == -1:
+			arg2_index =  search_sentence_index(doc_sentence_list,arg2,0)
+
+
+		# catch the explicit discourse relations within sentence, split the sentence into two arguments
+		if arg1_index == arg2_index and arg1_index != -1:
+			sentence = doc_sentence_list[arg1_index]
+			for j in range(len(sentence)):
+				if sentence[j] in [',',':',';','.','?','!']:
+					if (sentence_contain_arg(sentence[:j],arg1) and sentence_contain_arg(sentence[j+1:],arg2)) or (sentence_contain_arg(sentence[:j],arg2) and sentence_contain_arg(sentence[j+1:],arg1)):
+						doc_sentence_list = doc_sentence_list[:arg1_index] + [sentence[:j+1],sentence[j+1:]] + doc_sentence_list[arg1_index+1:]
+						doc_discourse_dict = update_doc_discourse_dict(doc_discourse_dict,arg1_index)
+						break
+
+			arg1_index =  search_sentence_index(doc_sentence_list,arg1,prev_index)
+			
+			if arg1 in ['you give parties']: #special case of wsj_1367
+				arg1_index = arg1_index+1
+
+			arg2_index = search_sentence_index(doc_sentence_list,arg2,prev_index)
+
+		if arg1_index == -1:
+			arg1_index =  search_sentence_index(doc_sentence_list,arg1,0)
+		if arg2_index == -1:
+			arg2_index =  search_sentence_index(doc_sentence_list,arg2,0)
+
+		if arg1_index == arg2_index and arg1_index != -1:
+			for j in range(len(sentence)):
+				if sentence[j] in [' ','-']:
+					if (sentence_contain_arg(sentence[:j],arg1) and sentence_contain_arg(sentence[j+1:],arg2)) or (sentence_contain_arg(sentence[:j],arg2) and sentence_contain_arg(sentence[j+1:],arg1)):
+						doc_sentence_list = doc_sentence_list[:arg1_index] + [sentence[:j+1],sentence[j+1:]] + doc_sentence_list[arg1_index+1:]
+						doc_discourse_dict = update_doc_discourse_dict(doc_discourse_dict,arg1_index)
+						break
+
+			arg1_index =  search_sentence_index(doc_sentence_list,arg1,prev_index)
+			arg2_index = search_sentence_index(doc_sentence_list,arg2,prev_index)
+
+		if arg1_index == -1:
+			arg1_index =  search_sentence_index(doc_sentence_list,arg1,0)
+		if arg2_index == -1:
+			arg2_index =  search_sentence_index(doc_sentence_list,arg2,0)
+
+		# arg2, connective arg1, arg2
+		if arg1_index == arg2_index and arg1_index != -1:
+			sentence = doc_sentence_list[arg1_index]
+			flag = False
+
+			for k in range(len(arg1.split())/2+1):
+				tmp_arg1 = ' '.join(arg1.split(' ')[k:])
+				for j in range(len(sentence)):
+					if sentence[j] in [',',':',';','.','-','?','!',' ']:
+						if (sentence_contain_arg(sentence[:j],tmp_arg1) and sentence_contain_arg(sentence[j+1:],arg2)) or (sentence_contain_arg(sentence[:j],arg2) and sentence_contain_arg(sentence[j+1:],tmp_arg1)):
+							doc_sentence_list = doc_sentence_list[:arg1_index] + [sentence[:j+1],sentence[j+1:]] + doc_sentence_list[arg1_index+1:]
+							doc_discourse_dict = update_doc_discourse_dict(doc_discourse_dict,arg1_index)
+							flag = True
+							break
+				if flag:
+					break
+
+			if not flag:			
+				for k in range(1,len(arg1.split())/2+1):
+					tmp_arg1 = ' '.join(arg1.split(' ')[:-k])
+					for j in range(len(sentence)):
+						if sentence[j] in [',',':',';','.','-','?','!',' ']:
+							if (sentence_contain_arg(sentence[:j],tmp_arg1) and sentence_contain_arg(sentence[j+1:],arg2)) or (sentence_contain_arg(sentence[:j],arg2) and sentence_contain_arg(sentence[j+1:],tmp_arg1)):
+								doc_sentence_list = doc_sentence_list[:arg1_index] + [sentence[:j+1],sentence[j+1:]] + doc_sentence_list[arg1_index+1:]
+								doc_discourse_dict = update_doc_discourse_dict(doc_discourse_dict,arg1_index)
+								flag = True
+								break
+					if flag:
+						break
+
+			arg1_index =  search_sentence_index(doc_sentence_list,tmp_arg1,prev_index)
+			arg2_index = search_sentence_index(doc_sentence_list,arg2,prev_index)
+
+		if arg1_index == arg2_index and arg1_index != -1:
+			sentence = doc_sentence_list[arg1_index]
+			flag = False
+
+			replace_arg1 = arg2
+			replace_arg2 = arg1
+
+			for k in range(len(replace_arg1.split())/2+1):
+				tmp_arg1 = ' '.join(replace_arg1.split(' ')[k:])
+				for j in range(len(sentence)):
+					if sentence[j] in [',',':',';','.','-','?','!',' ']:
+						if (sentence_contain_arg(sentence[:j],tmp_arg1) and sentence_contain_arg(sentence[j+1:],replace_arg2)) or (sentence_contain_arg(sentence[:j],replace_arg2) and sentence_contain_arg(sentence[j+1:],tmp_arg1)):
+							doc_sentence_list = doc_sentence_list[:arg1_index] + [sentence[:j+1],sentence[j+1:]] + doc_sentence_list[arg1_index+1:]
+							doc_discourse_dict = update_doc_discourse_dict(doc_discourse_dict,arg1_index)
+							flag = True
+							break
+				if flag:
+					break
+
+			if not flag:			
+				for k in range(1,len(replace_arg1.split())/2+1):
+					tmp_arg1 = ' '.join(replace_arg1.split(' ')[:-k])
+					for j in range(len(sentence)):
+						if sentence[j] in [',',':',';','.','-','?','!',' ']:
+							if (sentence_contain_arg(sentence[:j],tmp_arg1) and sentence_contain_arg(sentence[j+1:],replace_arg2)) or (sentence_contain_arg(sentence[:j],replace_arg2) and sentence_contain_arg(sentence[j+1:],tmp_arg1)):
+								doc_sentence_list = doc_sentence_list[:arg1_index] + [sentence[:j+1],sentence[j+1:]] + doc_sentence_list[arg1_index+1:]
+								doc_discourse_dict = update_doc_discourse_dict(doc_discourse_dict,arg1_index)
+								flag = True
+								break
+					if flag:
+						break
+
+			arg1_index =  search_sentence_index(doc_sentence_list,tmp_arg1,prev_index)
+			arg2_index = search_sentence_index(doc_sentence_list,replace_arg2,prev_index)		
+
+		if arg1_index == -1:
+			arg1_index =  search_sentence_index(doc_sentence_list,arg1,0)
+		if arg2_index == -1:
+			arg2_index =  search_sentence_index(doc_sentence_list,arg2,0)
+		
+
+		# if arg2 is the first sentence of any paragraphs and arg1 locates more than one sentence from arg2, copy the arg1 in front of arg2 
+		if arg2_index - arg1_index >= 2 and arg1_index != -1 and arg2_index != -1:
+			if doc_sentence_list[arg2_index] in doc_paragraph_first_sentence_list and (arg2_index-1,arg2_index) not in doc_discourse_dict:
+				doc_sentence_list = doc_sentence_list[:arg2_index] + [doc_sentence_list[arg1_index]] + doc_sentence_list[arg2_index:]
+				doc_discourse_dict = update_doc_discourse_dict(doc_discourse_dict,arg2_index)
+
+				arg1_index =  search_sentence_index(doc_sentence_list,arg1,arg1_index+1)
+				arg2_index = search_sentence_index(doc_sentence_list,arg2,arg2_index+1)
+
+		if arg1_index == -1 or arg2_index == -1:
+			explicit_filter_count += 1
+			#print arg1 if arg1_index == -1 else arg2
+			#print prev_index
+			#print arg1_index,arg1
+			#print arg2_index,arg2
+			#print doc_sentence_list
+			continue
+
+		if arg1_index - arg2_index == 1 or arg2_index - arg1_index == 1:
+			#assert connective in doc_sentence_list[arg1_index]
+			prev_index = max(arg1_index,arg2_index)
+
+			if arg1_index > arg2_index:
+				tmp_index = arg1_index
+				arg1_index = arg2_index
+				arg2_index = tmp_index
+
+			if (arg1_index,arg2_index) not in doc_discourse_dict:
+				explicit_count = explicit_count + 1
+				doc_discourse_dict[(arg1_index,arg2_index)] = (discourse_type,discourse_label)
+			else:
+				if doc_discourse_dict[(arg1_index,arg2_index)][0] in ['EntRel','AltLex']:
+					explicit_count = explicit_count + 1
+					doc_discourse_dict[(arg1_index,arg2_index)] = (discourse_type,discourse_label)
+				elif doc_discourse_dict[(arg1_index,arg2_index)][0] in ['Explicit']:
+					double_label_count = double_label_count + 1
+					explicit_count = explicit_count + 1
+					prev_discourse_label = doc_discourse_dict[(arg1_index,arg2_index)][1]
+
+					doc_discourse_dict[(arg1_index,arg2_index)]  = (discourse_type,prev_discourse_label + '|' + discourse_label)
+					#print '-----------------------------------'
+					#print arg1_index,arg1
+					#print arg2_index,arg2
+					#print doc_sentence_list[arg1_index]
+					#print doc_sentence_list[arg2_index]
+					#print prev_discourse_label
+					#print discourse_label
+
+				else:
+					explicit_filter_count += 1
+					#print '-----------------------------------'
+					#print arg1_index,arg1
+					#print arg2_index,arg2
+					#print doc_sentence_list[arg1_index]
+					#print doc_sentence_list[arg2_index]
+					#print doc_discourse_dict[(arg1_index,arg2_index)]
+					#print discourse_label
+					pass
+		elif arg1_index == arg2_index:
+			explicit_filter_count += 1
+			#print '------------------------'
+			#print discourse_label
+			#print arg1
+			#print arg2
+			#print doc_sentence_list[arg1_index]
+			pass
+		else:
+			explicit_filter_count += 1
+			#print '------------------------'
+			#print discourse_label
+			#print arg1_index, arg1
+			#print doc_sentence_list[arg1_index]
+			#print arg2_index, arg2
+			#print doc_sentence_list[arg2_index]
+			pass
+
+	return doc_sentence_list,doc_discourse_dict
 
 def process_doc(pipe_file_path,raw_file_path):
 	pipe_file = open(pipe_file_path,'r')
@@ -159,14 +420,14 @@ def process_doc(pipe_file_path,raw_file_path):
 
 	pipe_file_lines = pipe_file.readlines()
 	raw_file_lines =  raw_file.readlines()
-
+	print(raw_file_lines)
 	doc_paragraph_first_sentence_list = []
 	doc_sentence_list = []
 	for i in range(2,len(raw_file_lines)):
 		line = raw_file_lines[i].replace('\n','').strip()
 		if len(line) > 0:
 			sentences_list = line
-			doc_sentence_list = doc_sentence_list + sentences_list
+			doc_sentence_list.append(sentences_list)
 			doc_paragraph_first_sentence_list.append(sentences_list[0])
 
 	doc_discourse_dict = {}
@@ -183,7 +444,7 @@ def process_fold(fold_list):
 	raw_file_path = '../dataset/pdtb_v2/data/raw/wsj/'
 
 	for fold in fold_list:
-		print 'fold: ' + str(fold)
+		print('fold: ' + str(fold))
 		fold_pipe_file_path = os.path.join(pipe_file_path,fold)
 		fold_raw_file_path = os.path.join(raw_file_path,fold)
 
@@ -216,33 +477,6 @@ train_X,train_Y = process_fold(training_fold_list)
 test_X, test_Y = process_fold(test_fold_list)
 
 
-def load_data():
-    print( 'Loading Data...')
-    outfile = open(os.path.join(os.getcwd(),'/scratch/user/xishi/pdtb/pdtb/pdtb_implicit_moreexplicit_discourse_withoutAltLex_paragraph_multilabel_addposnerembedding.pt'),'rb')
-    pdtb_data = torch.load(outfile)
-    outfile.close()
-
-    dev_X,dev_Y,train_X,train_Y,test_X,test_Y = pdtb_data['dev_X'],pdtb_data['dev_Y'],pdtb_data['train_X'] ,pdtb_data['train_Y'],pdtb_data['test_X'],pdtb_data['test_Y']
-
-    dev_X_eos_list = dev_X[2]
-    dev_X_label_length_list = dev_X[1]
-    dev_X = dev_X[0]
-    
-    test_X_eos_list = test_X[2]
-    test_X_label_length_list = test_X[1]
-    test_X = test_X[0]
-
-    print(len(dev_X))
-    for i in range(3):
-        print("dev#######",i)
-        print("dev_X_eos_list",dev_X_eos_list[i])
-        print("dev_X_label_length_list",dev_X_label_length_list[i])
-        print("dev_X",dev_X[i].shape)
-        print("dev_Y",len(dev_Y[i]))
-        print("dev_Y",dev_Y[i])
-        # print("dev_Y[0].shape",dev_Y[0].shape)
-        
-    return
 
 
-load_data()
+print(dev_X.shape)
