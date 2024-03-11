@@ -13,11 +13,12 @@ Original file is located at
 
 This notebook runs on a T4 GPU. (Last update: 24 Aug 2023)
 """
-
+#read token
+auth_token="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"
 
 import os
 import torch
-from datasets import load_dataset
+# from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -29,15 +30,16 @@ from transformers import (
 )
 from peft import LoraConfig, PeftModel
 from trl import SFTTrainer
-
+from implictdatareader import load_pdtb,transform_train_conversation
 # The model that you want to train from the Hugging Face hub
-model_name = "NousResearch/Llama-2-7b-chat-hf"
+model_name = "meta-llama/Llama-2-7b-chat-hf"
 
 # The instruction dataset to use
-dataset_name = "mlabonne/guanaco-llama2-1k"
+# dataset_name = "mlabonne/guanaco-llama2-1k"
 
 # Fine-tuned model name
-new_model = "llama-2-7b-miniguanaco"
+# new_model = "llama-2-7b-miniguanaco"
+new_model = "llama-2-7b-pdtb2.0-epoch10"
 
 ################################################################################
 # QLoRA parameters
@@ -76,17 +78,20 @@ use_nested_quant = False
 output_dir = "./results"
 
 # Number of training epochs
-num_train_epochs = 1
+num_train_epochs = 10
 
 # Enable fp16/bf16 training (set bf16 to True with an A100)
 fp16 = False
 bf16 = True
 
 # Batch size per GPU for training
-per_device_train_batch_size = 4
+#per_device_train_batch_size = 4
+per_device_train_batch_size = 32
 
 # Batch size per GPU for evaluation
-per_device_eval_batch_size = 4
+#per_device_eval_batch_size = 4
+per_device_eval_batch_size = 32
+
 
 # Number of update steps to accumulate the gradients for
 gradient_accumulation_steps = 1
@@ -139,9 +144,9 @@ packing = False
 device_map = {"": 0}
 
 # Load dataset (you can process it here)
-local_dataset_path = './my_local_dataset.pt'
-local_dataset = torch.load(local_dataset_path)
-dataset = load_dataset(dataset_name, split="train")
+# dataset = load_dataset(dataset_name, split="train")
+training_dataset=load_pdtb(split="train")
+training_dataset=training_dataset.map(transform_train_conversation)
 
 # Load tokenizer and model with QLoRA configuration
 compute_dtype = getattr(torch, bnb_4bit_compute_dtype)
@@ -164,14 +169,16 @@ if compute_dtype == torch.float16 and use_4bit:
 # Load base model
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
+    use_auth_token=auth_token,
     quantization_config=bnb_config,
     device_map=device_map
+    
 )
 model.config.use_cache = False
 model.config.pretraining_tp = 1
 
 # Load LLaMA tokenizer
-tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
 tokenizer.pad_token = tokenizer.eos_token
 tokenizer.padding_side = "right" # Fix weird overflow issue with fp16 training
 
@@ -208,7 +215,7 @@ training_arguments = TrainingArguments(
 # Set supervised fine-tuning parameters
 trainer = SFTTrainer(
     model=model,
-    train_dataset=dataset,
+    train_dataset=training_dataset,
     peft_config=peft_config,
     dataset_text_field="text",
     max_seq_length=max_seq_length,
@@ -230,14 +237,14 @@ trainer.model.save_pretrained(new_model)
 logging.set_verbosity(logging.CRITICAL)
 
 # Run text generation pipeline with our next model
-prompt = "What is a large language model?"
-pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer, max_length=200)
-result = pipe(f"<s>[INST] {prompt} [/INST]")
-print(result[0]['generated_text'])
+# prompt = "What is a large language model?"
+# pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer, max_length=200)
+# result = pipe(f"<s>[INST] {prompt} [/INST]")
+# print(result[0]['generated_text'])
 
 # Empty VRAM
 del model
-del pipe
+# del pipe
 del trainer
 import gc
 gc.collect()
@@ -250,12 +257,13 @@ base_model = AutoModelForCausalLM.from_pretrained(
     return_dict=True,
     torch_dtype=torch.float16,
     device_map=device_map,
+    use_auth_token=auth_token
 )
 model = PeftModel.from_pretrained(base_model, new_model)
 model = model.merge_and_unload()
 
 # Reload tokenizer to save it
-tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
 tokenizer.pad_token = tokenizer.eos_token
 tokenizer.padding_side = "right"
 
