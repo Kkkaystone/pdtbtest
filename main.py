@@ -30,7 +30,7 @@ from transformers import (
 )
 from peft import LoraConfig, PeftModel
 from trl import SFTTrainer
-from implictdatareader import load_pdtb,transform_train_conversation
+from implictdatareader import load_pdtb,transform_train_conversation,transform_test_conversation
 # The model that you want to train from the Hugging Face hub
 model_name = "meta-llama/Llama-2-7b-chat-hf"
 
@@ -147,6 +147,10 @@ device_map = {"": 0}
 # dataset = load_dataset(dataset_name, split="train")
 training_dataset=load_pdtb(split="train")
 training_dataset=training_dataset.map(transform_train_conversation)
+dev_dataset=load_pdtb(split="dev")
+dev_dataset=dev_dataset.map(transform_train_conversation)
+test_dataset=load_pdtb(split="test")
+test_dataset=test_dataset.map(transform_test_conversation)
 
 # Load tokenizer and model with QLoRA configuration
 compute_dtype = getattr(torch, bnb_4bit_compute_dtype)
@@ -224,11 +228,11 @@ trainer = SFTTrainer(
     packing=packing,
 )
 
-# Train model
-trainer.train()
+# # Train model
+# trainer.train()
 
-# Save trained model
-trainer.model.save_pretrained(new_model)
+# # Save trained model
+# trainer.model.save_pretrained(new_model)
 
 # %load_ext tensorboard
 # %tensorboard --logdir results/runs
@@ -237,10 +241,10 @@ trainer.model.save_pretrained(new_model)
 logging.set_verbosity(logging.CRITICAL)
 
 # Run text generation pipeline with our next model
-# prompt = "What is a large language model?"
-# pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer, max_length=200)
-# result = pipe(f"<s>[INST] {prompt} [/INST]")
-# print(result[0]['generated_text'])
+prompt = "What is a large language model?"
+pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer, max_length=200)
+result = pipe(f"<s>[INST] {prompt} [/INST]")
+print(result[0]['generated_text'])
 
 # Empty VRAM
 del model
@@ -262,11 +266,11 @@ base_model = AutoModelForCausalLM.from_pretrained(
 model = PeftModel.from_pretrained(base_model, new_model)
 model = model.merge_and_unload()
 
-# Reload tokenizer to save it
-tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
-tokenizer.pad_token = tokenizer.eos_token
-tokenizer.padding_side = "right"
+# # Reload tokenizer to save it
+# tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
+# tokenizer.pad_token = tokenizer.eos_token
+# tokenizer.padding_side = "right"
 
 
-model.push_to_hub(new_model, use_temp_dir=False)
-tokenizer.push_to_hub(new_model, use_temp_dir=False)
+# model.push_to_hub(new_model, use_temp_dir=False)
+# tokenizer.push_to_hub(new_model, use_temp_dir=False)
