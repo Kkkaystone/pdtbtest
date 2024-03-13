@@ -162,7 +162,7 @@ def load_pdtb(split="dev"):
 def transform_train_conversation(x):
     prompt= x['text']
     answer = x['answer']
-    return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST] {answer} </s>'}
+    return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST] relation: {answer} </s>'}
     # prompt= example['prompt']
     # answer = example['completion']
     # return {'text': f'<s>[INST] <<SYS>> Predict the relation between different EVENT and TIMEX enclosed in <EVENT></EVENT> and <TIMEX></TIMEX> <</SYS>> Given the document D {context_dict[example[“doc_id”]] + prompt} [/INST] {answer} </s>'}
@@ -170,17 +170,21 @@ def transform_train_conversation(x):
 
 def transform_test_conversation(x):
     prompt= x['text']
-    return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST]  </s>'}
+    return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST] relation: </s>'}
 
 
-dataset=load_pdtb("dev")
+dataset=load_pdtb("test")
 print(dataset.column_names)
 
-dataset=dataset.map(transform_train_conversation,remove_columns=['answer'])
+prompt=dataset.map(transform_train_conversation,remove_columns=['answer'])
 print(dataset.column_names)
+print(prompt.column_names)
+print(type(prompt))
+print(prompt["text"][0:3])
+
 for example in dataset:
     print(example)
-# for batch_idx, (inputs, targets) in dataset:
+# # for batch_idx, (inputs, targets) in dataset:
 #     print(f"Batch {batch_idx}")
 #     print("Inputs:", inputs)
 #     print("Targets:", targets)

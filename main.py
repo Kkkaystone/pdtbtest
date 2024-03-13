@@ -39,7 +39,7 @@ model_name = "meta-llama/Llama-2-7b-chat-hf"
 
 # Fine-tuned model name
 # new_model = "llama-2-7b-miniguanaco"
-new_model = "llama-2-7b-pdtb2.0-epoch10"
+new_model = "llama-2-7b-pdtb2.0-epoch3"
 
 ################################################################################
 # QLoRA parameters
@@ -78,7 +78,7 @@ use_nested_quant = False
 output_dir = "./results"
 
 # Number of training epochs
-num_train_epochs = 10
+num_train_epochs = 3
 
 # Enable fp16/bf16 training (set bf16 to True with an A100)
 fp16 = False
@@ -184,7 +184,7 @@ model.config.pretraining_tp = 1
 # Load LLaMA tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
 tokenizer.pad_token = tokenizer.eos_token
-tokenizer.padding_side = "right" # Fix weird overflow issue with fp16 training
+tokenizer.padding_side = "left" # Fix weird overflow issue with fp16 training
 
 # Load LoRA configuration
 peft_config = LoraConfig(
@@ -229,10 +229,10 @@ trainer = SFTTrainer(
 )
 
 # # Train model
-# trainer.train()
+trainer.train()
 
 # # Save trained model
-# trainer.model.save_pretrained(new_model)
+trainer.model.save_pretrained(new_model)
 
 # %load_ext tensorboard
 # %tensorboard --logdir results/runs
@@ -241,10 +241,10 @@ trainer = SFTTrainer(
 logging.set_verbosity(logging.CRITICAL)
 
 # Run text generation pipeline with our next model
-prompt = "What is a large language model?"
-pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer, max_length=200)
-result = pipe(f"<s>[INST] {prompt} [/INST]")
-print(result[0]['generated_text'])
+# prompt = "What is a large language model?"
+# pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer)
+# result = pipe(f"<s>[INST] {prompt} [/INST]")
+# print(result[0]['generated_text'])
 
 # Empty VRAM
 del model
@@ -267,10 +267,10 @@ model = PeftModel.from_pretrained(base_model, new_model)
 model = model.merge_and_unload()
 
 # # Reload tokenizer to save it
-# tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
-# tokenizer.pad_token = tokenizer.eos_token
-# tokenizer.padding_side = "right"
+tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
+tokenizer.pad_token = tokenizer.eos_token
+tokenizer.padding_side = "left"
 
 
-# model.push_to_hub(new_model, use_temp_dir=False)
-# tokenizer.push_to_hub(new_model, use_temp_dir=False)
+model.push_to_hub(new_model, use_temp_dir=False)
+tokenizer.push_to_hub(new_model, use_temp_dir=False)
