@@ -39,7 +39,7 @@ model_name = "meta-llama/Llama-2-7b-chat-hf"
 
 # Fine-tuned model name
 # new_model = "llama-2-7b-miniguanaco"
-new_model = "llama-2-7b-pdtb2.0-epoch3"
+new_model = "llama-2-7b-pdtb2.0-epoch3-2.0"
 
 ################################################################################
 # QLoRA parameters
@@ -184,7 +184,7 @@ model.config.pretraining_tp = 1
 # Load LLaMA tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
 tokenizer.pad_token = tokenizer.eos_token
-tokenizer.padding_side = "left" # Fix weird overflow issue with fp16 training
+tokenizer.padding_side = "right" # Fix weird overflow issue with fp16 training
 
 # Load LoRA configuration
 peft_config = LoraConfig(
@@ -269,7 +269,7 @@ model = model.merge_and_unload()
 # # Reload tokenizer to save it
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
 tokenizer.pad_token = tokenizer.eos_token
-tokenizer.padding_side = "left"
+tokenizer.padding_side = "right"
 
 
 model.push_to_hub(new_model, use_temp_dir=False)

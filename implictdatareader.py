@@ -126,7 +126,8 @@ def ImplicitDataset(foldlist):
                     sup2=arg2_part[3].split('##############')[0].strip()
                 answer=",".join(label)
                 #data_dict.append({'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 is the supplement context. arg1_attr is the attribution of Arg1. arg2_attr is the is the attribution of Arg2<</SYS>>Given the document {sup1}{arg1}{arg1_attr}{arg2}{arg2_attr}{sup2} [/INST]</s>', 'answer':answer})
-                data_dict['text'].append(f'{sup1}{arg1}{arg1_attr}{arg2}{arg2_attr}{sup2}')
+                #data_dict['text'].append(f'{sup1}{arg1}{arg1_attr}{arg2}{arg2_attr}{sup2}')
+                data_dict['text'].append(f'{arg1}{arg2}')
                 data_dict['answer'].append(answer)
 
                 # data.append("sup1:{}. arg1:{}(atrribution of arg1: {}). arg2:{}(atrribution of arg2: {}). sup2:{}.".format(sup1,arg1,arg1_attr,arg2,arg2_attr,sup2))
@@ -162,7 +163,17 @@ def load_pdtb(split="dev"):
 def transform_train_conversation(x):
     prompt= x['text']
     answer = x['answer']
-    return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST] relation: {answer} </s>'}
+    return f'''### Instruction:
+Predict the relation between Arg1 and Arg2
+
+### Input:
+{prompt}
+
+### Response:
+{answer}
+'''
+    #return {'text': f'<s> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. relation:[Temporal, Comparison, Contingency, Expansion] \n Given the document: {prompt} relation: {answer}'}
+    #return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST] relation: {answer} </s>'}
     # prompt= example['prompt']
     # answer = example['completion']
     # return {'text': f'<s>[INST] <<SYS>> Predict the relation between different EVENT and TIMEX enclosed in <EVENT></EVENT> and <TIMEX></TIMEX> <</SYS>> Given the document D {context_dict[example[“doc_id”]] + prompt} [/INST] {answer} </s>'}
@@ -182,8 +193,8 @@ print(prompt.column_names)
 print(type(prompt))
 print(prompt["text"][0:3])
 
-for example in dataset:
-    print(example)
+# for example in dataset:
+#     print(example)
 # # for batch_idx, (inputs, targets) in dataset:
 #     print(f"Batch {batch_idx}")
 #     print("Inputs:", inputs)
