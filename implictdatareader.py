@@ -163,15 +163,16 @@ def load_pdtb(split="dev"):
 def transform_train_conversation(x):
     prompt= x['text']
     answer = x['answer']
-    return f'''### Instruction:
-Predict the relation between Arg1 and Arg2
+    return {'text':f'''### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
 
 ### Input:
 {prompt}
 
 ### Response:
 {answer}
-'''
+'''}
+    
     #return {'text': f'<s> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. relation:[Temporal, Comparison, Contingency, Expansion] \n Given the document: {prompt} relation: {answer}'}
     #return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST] relation: {answer} </s>'}
     # prompt= example['prompt']
@@ -179,10 +180,22 @@ Predict the relation between Arg1 and Arg2
     # return {'text': f'<s>[INST] <<SYS>> Predict the relation between different EVENT and TIMEX enclosed in <EVENT></EVENT> and <TIMEX></TIMEX> <</SYS>> Given the document D {context_dict[example[“doc_id”]] + prompt} [/INST] {answer} </s>'}
 #print(len(self.data))
 
+# def transform_test_conversation(x):
+#     prompt= x['text']
+#     return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST] relation: </s>'}
+
 def transform_test_conversation(x):
     prompt= x['text']
-    return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST] relation: </s>'}
+    answer = x['answer']
+    return {'text':f'''### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
 
+### Input:
+{prompt}
+
+### Response:
+
+'''}
 
 dataset=load_pdtb("test")
 print(dataset.column_names)

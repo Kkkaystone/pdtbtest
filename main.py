@@ -31,6 +31,13 @@ from transformers import (
 from peft import LoraConfig, PeftModel
 from trl import SFTTrainer
 from implictdatareader import load_pdtb,transform_train_conversation,transform_test_conversation
+
+# use_flash_attention = True
+
+# if use_flash_attention:
+#     # unpatch flash attention
+#     from utils.llama_patch import unplace_flash_attn_with_attn
+#     unplace_flash_attn_with_attn()
 # The model that you want to train from the Hugging Face hub
 model_name = "meta-llama/Llama-2-7b-chat-hf"
 
@@ -39,7 +46,7 @@ model_name = "meta-llama/Llama-2-7b-chat-hf"
 
 # Fine-tuned model name
 # new_model = "llama-2-7b-miniguanaco"
-new_model = "llama-2-7b-pdtb2.0-epoch3-2.0"
+new_model = "llama-2-7b-pdtb2.0-epoch3-p4"
 
 ################################################################################
 # QLoRA parameters
@@ -85,12 +92,12 @@ fp16 = False
 bf16 = True
 
 # Batch size per GPU for training
-#per_device_train_batch_size = 4
-per_device_train_batch_size = 32
+per_device_train_batch_size = 4
+#per_device_train_batch_size=6 if use_flash_attention else 4
 
 # Batch size per GPU for evaluation
 #per_device_eval_batch_size = 4
-per_device_eval_batch_size = 32
+per_device_eval_batch_size = per_device_train_batch_size
 
 
 # Number of update steps to accumulate the gradients for
@@ -112,7 +119,11 @@ weight_decay = 0.001
 optim = "paged_adamw_32bit"
 
 # Learning rate schedule
-lr_scheduler_type = "cosine"
+# lr_scheduler_type = "cosine"
+# Learning rate schedule (constant a bit better than cosine)
+
+lr_scheduler_type = "constant"
+
 
 # Number of training steps (overrides num_train_epochs)
 max_steps = -1
@@ -175,8 +186,8 @@ model = AutoModelForCausalLM.from_pretrained(
     model_name,
     use_auth_token=auth_token,
     quantization_config=bnb_config,
-    device_map=device_map
-    
+    device_map=device_map,
+    repetition_penalty=1.5
 )
 model.config.use_cache = False
 model.config.pretraining_tp = 1
@@ -254,23 +265,23 @@ import gc
 gc.collect()
 gc.collect()
 
-# Reload model in FP16 and merge it with LoRA weights
-base_model = AutoModelForCausalLM.from_pretrained(
-    model_name,
-    low_cpu_mem_usage=True,
-    return_dict=True,
-    torch_dtype=torch.float16,
-    device_map=device_map,
-    use_auth_token=auth_token
-)
-model = PeftModel.from_pretrained(base_model, new_model)
-model = model.merge_and_unload()
+# # Reload model in FP16 and merge it with LoRA weights
+# base_model = AutoModelForCausalLM.from_pretrained(
+#     model_name,
+#     low_cpu_mem_usage=True,
+#     return_dict=True,
+#     torch_dtype=torch.float16,
+#     device_map=device_map,
+#     use_auth_token=auth_token
+# )
+# model = PeftModel.from_pretrained(base_model, new_model)
+# model = model.merge_and_unload()
 
-# # Reload tokenizer to save it
-tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
-tokenizer.pad_token = tokenizer.eos_token
-tokenizer.padding_side = "right"
+# # # Reload tokenizer to save it
+# tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
+# tokenizer.pad_token = tokenizer.eos_token
+# tokenizer.padding_side = "right"
 
 
-model.push_to_hub(new_model, use_temp_dir=False)
-tokenizer.push_to_hub(new_model, use_temp_dir=False)
+# model.push_to_hub(new_model, use_temp_dir=False)
+# tokenizer.push_to_hub(new_model, use_temp_dir=False)
