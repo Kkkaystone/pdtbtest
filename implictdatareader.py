@@ -1,8 +1,11 @@
 import torch
 import os
+import json
 from torch.utils.data import Dataset, DataLoader
 from collections import defaultdict
 from datasets import Dataset
+from datasets import load_dataset,load_from_disk
+
 # class ImplicitDataset(Dataset):
 #     def __init__(self, foldlist):
 #         super().__init__()
@@ -197,17 +200,42 @@ Predict the relation between Arg1 and Arg2, just choose one or two label from :[
 
 '''}
 
-dataset=load_pdtb("test")
-print(dataset.column_names)
+def transform_test_conversation_fewshot(x):
+    k_shot=2
+    dataset=load_pdtb("train")
+    prompt=""
+    for i in range(k_shot):
+        prompt+=transform_train_conversation(dataset[i])['text']
+    return {'text':prompt+transform_test_conversation(x)['text']}
+    
+    
 
-prompt=dataset.map(transform_train_conversation,remove_columns=['answer'])
-print(dataset.column_names)
-print(prompt.column_names)
-print(type(prompt))
-print(prompt["text"][0:3])
+dataset=load_pdtb("dev")
+# print(dataset.column_names)
+# print(dataset[:3])
+# prompt=transform_test_conversation_fewshot(dataset[0])
+# prompt=dataset.map(transform_train_conversation,remove_columns=['answer'])
+# data_files="dataset"
+# try:
+#     prompt = load_from_disk(data_files)
+# except Exception as e:
+#     print(f"An error occurred: {e}")
+#     print("dataset not found, mapping from test_dataset")
+#     prompt=dataset.map(transform_train_conversation)
+# try:
+#     prompt.save_to_disk("dataset")
+# except PermissionError:
+#     print(f"Tried to overwrite but a dataset can't overwrite itself.")
+  
+
+# print(dataset.column_names)
+# print(prompt.column_names)
+# print(type(prompt))
+# print(prompt["text"][0:3])
 
 # for example in dataset:
-#     print(example)
+#     print(type(example))
+    
 # # for batch_idx, (inputs, targets) in dataset:
 #     print(f"Batch {batch_idx}")
 #     print("Inputs:", inputs)
