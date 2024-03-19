@@ -94,7 +94,8 @@ def ImplicitDataset(foldlist):
             samples = content.split('________________________________________________________')[1:-1]
             
             for sample in samples:
-                if "____Implicit____" not in sample and "____AltLex____" not in sample:
+                # if "____Implicit____" not in sample and "____AltLex____" not in sample:
+                if "____Implicit____" not in sample:
                     continue  # Skip non-implicit samples
                 
                 parts=sample.split('____Arg1____')
@@ -130,7 +131,10 @@ def ImplicitDataset(foldlist):
                 answer=",".join(label)
                 #data_dict.append({'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 is the supplement context. arg1_attr is the attribution of Arg1. arg2_attr is the is the attribution of Arg2<</SYS>>Given the document {sup1}{arg1}{arg1_attr}{arg2}{arg2_attr}{sup2} [/INST]</s>', 'answer':answer})
                 #data_dict['text'].append(f'{sup1}{arg1}{arg1_attr}{arg2}{arg2_attr}{sup2}')
+                ##p4
                 data_dict['text'].append(f'{arg1}{arg2}')
+                ##p5
+                #data_dict['text'].append(f'{sup1}{arg1}{arg1_attr}{arg2}{arg2_attr}{sup2}')
                 data_dict['answer'].append(answer)
 
                 # data.append("sup1:{}. arg1:{}(atrribution of arg1: {}). arg2:{}(atrribution of arg2: {}). sup2:{}.".format(sup1,arg1,arg1_attr,arg2,arg2_attr,sup2))
@@ -210,7 +214,10 @@ def transform_test_conversation_fewshot(x):
     
     
 
-dataset=load_pdtb("dev")
+# dataset=load_pdtb("train")
+# for example in dataset:
+#     print(example["text"])
+#     print(example["answer"])
 # print(dataset.column_names)
 # print(dataset[:3])
 # prompt=transform_test_conversation_fewshot(dataset[0])

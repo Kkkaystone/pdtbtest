@@ -47,7 +47,7 @@ model_name = "meta-llama/Llama-2-7b-chat-hf"
 
 # Fine-tuned model name
 # new_model = "llama-2-7b-miniguanaco"
-new_model = "llama-2-7b-pdtb2.0-epoch3-p4"+datetime.now().strftime("%Y%m%d%H%M%S")
+new_model = "llama-2-7b-pdtb2.0-epoch3-p4-fix"+datetime.now().strftime("%Y%m%d%H%M%S")
 
 ################################################################################
 # QLoRA parameters
