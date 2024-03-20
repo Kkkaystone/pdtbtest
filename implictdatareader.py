@@ -79,6 +79,8 @@ from datasets import load_dataset,load_from_disk
     #     # label = self.labels[idx]
     #     return x
 def ImplicitDataset(foldlist):
+    alt_cnt=0
+
     labels = []
     category_mapping = {'Temporal': 0, 'Comparison': 1, 'Contingency': 2, 'Expansion': 3}
     data=[]
@@ -94,6 +96,8 @@ def ImplicitDataset(foldlist):
             samples = content.split('________________________________________________________')[1:-1]
             
             for sample in samples:
+                if "____AltLex____" in sample:
+                    alt_cnt+=1
                 # if "____Implicit____" not in sample and "____AltLex____" not in sample:
                 if "____Implicit____" not in sample:
                     continue  # Skip non-implicit samples
@@ -139,6 +143,7 @@ def ImplicitDataset(foldlist):
 
                 # data.append("sup1:{}. arg1:{}(atrribution of arg1: {}). arg2:{}(atrribution of arg2: {}). sup2:{}.".format(sup1,arg1,arg1_attr,arg2,arg2_attr,sup2))
                 labels.append(answer)
+    print("alt_cnt",alt_cnt)
     return data_dict
     # def transform_train_conversation(example, context_dict):
     #     prompt= example['prompt']
@@ -213,8 +218,8 @@ def transform_test_conversation_fewshot(x):
     return {'text':prompt+transform_test_conversation(x)['text']}
     
     
-
-# dataset=load_pdtb("train")
+dataset=load_pdtb("train")
+print(len(dataset["text"]))
 # for example in dataset:
 #     print(example["text"])
 #     print(example["answer"])

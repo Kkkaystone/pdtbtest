@@ -54,7 +54,7 @@ new_model = "llama-2-7b-pdtb2.0-epoch3-p4-fix"+datetime.now().strftime("%Y%m%d%H
 ################################################################################
 
 # LoRA attention dimension
-lora_r = 64
+lora_r = 8
 
 # Alpha parameter for LoRA scaling
 lora_alpha = 16
