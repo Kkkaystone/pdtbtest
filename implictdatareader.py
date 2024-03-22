@@ -199,6 +199,7 @@ Predict the relation between Arg1 and Arg2, just choose one or two label from :[
 def transform_test_conversation(x):
     prompt= x['text']
     answer = x['answer']
+    ### cot
     return {'text':f'''### Instruction:
 Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
 
@@ -206,7 +207,7 @@ Predict the relation between Arg1 and Arg2, just choose one or two label from :[
 {prompt}
 
 ### Response:
-
+Let's think step by step:
 '''}
 
 def transform_test_conversation_fewshot(x):
@@ -220,9 +221,9 @@ def transform_test_conversation_fewshot(x):
     
 dataset=load_pdtb("train")
 print(len(dataset["text"]))
-# for example in dataset:
-#     print(example["text"])
-#     print(example["answer"])
+for example in dataset:
+    print(example["text"])
+    print(example["answer"])
 # print(dataset.column_names)
 # print(dataset[:3])
 # prompt=transform_test_conversation_fewshot(dataset[0])

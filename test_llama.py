@@ -44,29 +44,109 @@ base_model = AutoModelForCausalLM.from_pretrained(
 model = PeftModel.from_pretrained(base_model, new_model)
 model = model.merge_and_unload()
 
+
 # # Load LLaMA tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
 tokenizer.pad_token = tokenizer.eos_token
 tokenizer.padding_side = "right"
 
 
+
+
+
+#fewshot prompt:
+prompts_fewshot_template=f'''
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+
+### Input:
+<ARG1>Was this why some of the audience departed before or during the second half?
+Or was it because Ms. Collins had gone</ARG1><ARG2>Either way it was a pity</ARG2>
+
+### Response:
+Expansion
+
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+
+### Input:
+<ARG1>The rest of the concert was more straight jazz and mellow sounds written by Charlie Parker, Ornette Coleman, Bill Douglas and Eddie Gomez, with pictures for the Douglas pieces</ARG1><ARG2>It was enjoyable to hear accomplished jazz without having to sit in a smoke-filled club, but like the first half, much of it was easy to take and ultimately forgettable</ARG2>
+
+### Response:
+Expansion
+
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+
+### Input:
+<ARG1>Mr. Mayor's hope that references to "press freedom" would survive unamended seems doomed to failure</ARG1><ARG2>the current phrasing is "educating the public and media to avoid manipulation</ARG2>
+
+### Response:
+Contingency
+
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+
+### Input:
+<ARG1>The male part, the anthers of the plant, and the female, the pistils, of the same plant are within a fraction of an inch or even attached to each other</ARG1><ARG2>The anthers in these plants are difficult to clip off</ARG2>
+
+### Response:
+Contingency
+
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+
+### Input:
+<ARG1>He will be in charge of research, equity sales and trading, and the syndicate operation of Rothschild</ARG1><ARG2>Mr. Conlon was executive vice president and director of the equity division of the international division of Nikko Securities Co</ARG2>
+
+### Response:
+Temporal
+
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+
+### Input:
+<ARG1>He gave up seven hits, walked five and didn't get a decision</ARG1><ARG2>Arm troubles forced him back to the minors the next year</ARG2>
+
+### Response:
+Temporal
+
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+
+### Input:
+<ARG1>Seats currently are quoted at $400,000 bid, $425,000 asked</ARG1><ARG2>The record price for a full membership on the exchange is $550,000, set March 9</ARG2>
+
+### Response:
+Comparison
+
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+
+### Input:
+<ARG1>In late trading, the shares were up a whopping 122 pence ($1.93) -- a 16.3% gain -- to a record 869 pence on very heavy volume of 9.7 million shares</ARG1><ARG2>In the U.S. over-the-counter market, Jaguar shares trading as American Depositary Receipts closed at $13.625, up $1.75</ARG2>
+
+### Response:
+Comparison
+'''
+
 # load test set
 test_dataset=load_pdtb(split="test")
 
 prompts=test_dataset.map(transform_test_conversation)
+prompts_fewshot=prompts.map(lambda x: {'text':prompts_fewshot_template+x['text']})
 
-
-fewshot_dataset="fewshot_dataset_p4_fix"
-try:
-    prompts_fewshot = load_from_disk(fewshot_dataset)
-except Exception as e:
-    print(f"An error occurred: {e}")
-    print("fewshot_dataset not found, mapping from test_dataset")
-    prompts_fewshot=test_dataset.map(transform_test_conversation_fewshot)
-try:
-    prompts_fewshot.save_to_disk(fewshot_dataset)
-except PermissionError:
-    print(f"Tried to overwrite but a dataset can't overwrite itself.")
+# fewshot_dataset="fewshot_dataset_p4_fix"
+# try:
+#     prompts_fewshot = load_from_disk(fewshot_dataset)
+# except Exception as e:
+#     print(f"An error occurred: {e}")
+#     print("fewshot_dataset not found, mapping from test_dataset")
+#     prompts_fewshot=test_dataset.map(transform_test_conversation_fewshot)
+# try:
+#     prompts_fewshot.save_to_disk(fewshot_dataset)
+# except PermissionError:
+#     print(f"Tried to overwrite but a dataset can't overwrite itself.")
 
 
 
@@ -91,7 +171,7 @@ def label_mapping(out_list,is_fewshot=False):
         answers=out_sentence.split("### Response:")[1:]
         
         if is_fewshot:
-            answers=out_sentence.split("### Response:")[3:]
+            answers=out_sentence.split("### Response:")[9:]
         answers=" ".join(answers)
         label=[0,0,0,0]
         for category in category_mapping:
@@ -132,7 +212,7 @@ def eval(model,prompts,test_type):
                 do_sample=True,
                 temperature=0.75,
                 top_p=0.9,
-                max_new_tokens=10
+                max_new_tokens=200
             )
             out_sentence = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             out_list += out_sentence
@@ -141,8 +221,8 @@ def eval(model,prompts,test_type):
             json.dump(out_list, file)
             print("successfully save output file")
     return out_list
-out_list_sft = eval(model,prompts,"sft")
-out_list_zeroshot=eval(base_model,prompts,"zeroshot")
+# out_list_sft = eval(model,prompts,"sft")
+# out_list_zeroshot=eval(base_model,prompts,"zeroshot")
 out_list_fewshot=eval(base_model,prompts_fewshot,"fewshot")
 # with open('../output/l_output_zeroshot0319110854.json', 'r', encoding='utf-8') as file:
 #     out_list_zeroshot = json.load(file)
@@ -154,8 +234,8 @@ out_list_fewshot=eval(base_model,prompts_fewshot,"fewshot")
 
 
 label_predict_zeroshot=label_mapping(out_list_zeroshot)
-label_predict_fewshot=label_mapping(out_list_fewshot,True)
-label_predict_sft=label_mapping(out_list_sft)
+# label_predict_fewshot=label_mapping(out_list_fewshot,True)
+# label_predict_sft=label_mapping(out_list_sft)
 
 label_true=[]
 for data in test_dataset:
@@ -179,8 +259,8 @@ def print_eval_result(label_predict,test_type):
 print("label_predict_fewshot",label_predict_fewshot)
 
 print_eval_result(label_predict_zeroshot,"zeroshot")
-print_eval_result(label_predict_fewshot,"fewshot")
-print_eval_result(label_predict_sft,"sft")
+# print_eval_result(label_predict_fewshot,"fewshot")
+# print_eval_result(label_predict_sft,"sft")
 
 
 
