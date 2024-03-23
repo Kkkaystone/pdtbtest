@@ -86,7 +86,7 @@ use_nested_quant = False
 output_dir = "./results"
 
 # Number of training epochs
-num_train_epochs = 3
+num_train_epochs = 10
 
 # Enable fp16/bf16 training (set bf16 to True with an A100)
 fp16 = False
@@ -188,7 +188,8 @@ model = AutoModelForCausalLM.from_pretrained(
     use_auth_token=auth_token,
     quantization_config=bnb_config,
     device_map=device_map,
-    repetition_penalty=1.5
+    attn_implementation="flash_attention_2",
+    repetition_penalty=1
 )
 model.config.use_cache = False
 model.config.pretraining_tp = 1
@@ -241,6 +242,7 @@ training_arguments = TrainingArguments(
 trainer = SFTTrainer(
     model=model,
     train_dataset=training_dataset,
+    eval_dataset=dev_dataset,
     peft_config=peft_config,
     dataset_text_field="text",
     max_seq_length=max_seq_length,

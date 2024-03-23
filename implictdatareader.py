@@ -176,7 +176,7 @@ def transform_train_conversation(x):
     prompt= x['text']
     answer = x['answer']
     return {'text':f'''### Instruction:
-Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion]
 
 ### Input:
 {prompt}
@@ -196,18 +196,30 @@ Predict the relation between Arg1 and Arg2, just choose one or two label from :[
 #     prompt= x['text']
 #     return {'text': f'<s>[INST] <<SYS>> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. sup1 and sup2 are the supplement context, enclosed in <SUP1></SUP1> and <SUP2></SUP2>. arg1_attr is the attribution of Arg1, enclosed in <ARG1_ATTR></ARG1_ATTR> . arg2_attr is the is the attribution of Arg2, enclosed in <ARG2_ATTR></ARG2_ATTR><</SYS>>Given the document: {prompt} [/INST] relation: </s>'}
 
-def transform_test_conversation(x):
+def transform_test_conversation_cot(x):
     prompt= x['text']
     answer = x['answer']
-    ### cot
+    ### cot with summary
     return {'text':f'''### Instruction:
-Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion]
 
 ### Input:
 {prompt}
 
 ### Response:
-Let's think step by step:
+Let's think step by step, and give a summary at the end:
+'''}
+def transform_test_conversation(x):
+    prompt= x['text']
+    answer = x['answer']
+    ### cot with summary
+    return {'text':f'''### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion]
+
+### Input:
+{prompt}
+
+### Response:
 '''}
 
 def transform_test_conversation_fewshot(x):
@@ -219,11 +231,11 @@ def transform_test_conversation_fewshot(x):
     return {'text':prompt+transform_test_conversation(x)['text']}
     
     
-dataset=load_pdtb("train")
-print(len(dataset["text"]))
-for example in dataset:
-    print(example["text"])
-    print(example["answer"])
+# dataset=load_pdtb("train")
+# print(len(dataset["text"]))
+# for example in dataset:
+#     print(example["text"])
+#     print(example["answer"])
 # print(dataset.column_names)
 # print(dataset[:3])
 # prompt=transform_test_conversation_fewshot(dataset[0])
