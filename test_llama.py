@@ -28,9 +28,10 @@ from transformers import (
 )
 device_map = {"": 0}
 
-model_llama2= "meta-llama/Llama-2-7b-chat-hf"
+model_llama2_7b= "meta-llama/Llama-2-7b-chat-hf"
+model_llama2_13b="meta-llama/Llama-2-13b-chat-hf"
 model_mistral= "mistralai/Mistral-7B-Instruct-v0.2"
-
+model_zephyr="HuggingFaceH4/zephyr-7b-beta"
 # PATH=new_model="/scratch/user/xishi/pdtb/coding/llama-2-7b-pdtb2.0-epoch3-p4-fix20240319161911"
 
 # Reload model in FP16 and merge it with LoRA weights
@@ -240,9 +241,10 @@ Comparison
 '''
 # load test set
 test_dataset=load_pdtb(split="test")
-
-prompts=test_dataset.map(transform_test_conversation_cot)
-prompts_fewshot=prompts.map(lambda x: {'text':prompts_fewshot_template+x['text']})
+print("#####prompt: 加入inst，zeroshot补充no need to explain")
+prompts=test_dataset.map(transform_test_conversation)
+prompts_cot=test_dataset.map(transform_test_conversation_cot)
+prompts_cot_fewshot=prompts_cot.map(lambda x: {'text':prompts_fewshot_template+x['text']})
 
 # fewshot_dataset="fewshot_dataset_p4_fix"
 # try:
@@ -256,36 +258,49 @@ prompts_fewshot=prompts.map(lambda x: {'text':prompts_fewshot_template+x['text']
 # except PermissionError:
 #     print(f"Tried to overwrite but a dataset can't overwrite itself.")
 
-category_mapping = {'Temporal': 0, 'Comparison': 1, 'Contingency': 2, 'Expansion': 3}
+category_mapping = {'temporal': 0, 'comparison': 1, 'contingency': 2, 'expansion': 3}
 
 label_true=[]
 for data in test_dataset:
     label=[0,0,0,0]
     for category in category_mapping:
-        if category in data['answer']:
+        if category in data['answer'].lower():
             label[category_mapping[category]]=1    
     label_true.append(label)
 def label_mapping(out_list,is_fewshot=False):
     labels=[]
     cnt=0
-    for out_sentence in out_list:
-        answers=out_sentence.split("### Response:")[1:]
+    print(len(out_list))
+    for i,out_sentence in enumerate(out_list):
+        print(i)
         if is_fewshot:
+            # print("out_sentence",out_sentence.split("### Response:")[8])
+            # print("test_dataset",test_dataset['text'][i])
             answers=out_sentence.split("### Response:")[9:]
-        answers=" ".join(answers)
+            answers=" ".join(answers).strip().lower()
+            tmp=answers=answers.split('###')[0].strip()
+            answers=answers.split('\n')[-1].strip()
+            if len(answers)>12:
+                answers=tmp.split('\n')[-3].strip()
+        else:
+            answers=out_sentence.split("### Response:")[1:]
+            answers=" ".join(answers).strip().lower()
+
         label=[0,0,0,0]
+        print("###true_label",test_dataset['answer'][i])
         for category in category_mapping:
             if category in answers:
                 label[category_mapping[category]]=1
         if all(x==0 for x in label):
-            print(out_sentence)
+            print(answers)
             cnt+=1    
         labels.append(label)
     print("len(out_list)",len(out_list))
     print("all_0_count:",cnt)
+    print(labels)
     return labels
 
-def eval(model,tokenizer,prompts,test_type):
+def eval(model,tokenizer,prompts,test_type,max_new_tokens=1024):
     model.eval()
     out_list=[]
     with torch.no_grad():
@@ -313,7 +328,7 @@ def eval(model,tokenizer,prompts,test_type):
                 do_sample=True,
                 temperature=0.75,
                 top_p=0.9,
-                max_new_tokens=1024
+                max_new_tokens=max_new_tokens
             )
             out_sentence = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             out_list += out_sentence
@@ -336,34 +351,57 @@ def print_eval_result(label_predict,test_type):
 
 
 def test_pipeline(model_name,prompts,test_type,load_local=False,local_path=None):
-    base_model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        low_cpu_mem_usage=True,
-        return_dict=True,
-        torch_dtype=torch.float16,
-        device_map=device_map,
-        repetition_penalty=1.5,
-        attn_implementation="flash_attention_2",
-        use_auth_token=auth_token
-    )
-    if test_type=='sft':
-        PATH=new_model="/scratch/user/xishi/pdtb/coding/llama-2-7b-pdtb2.0-epoch3-p4-fix20240319161911"
-        model = PeftModel.from_pretrained(base_model, new_model)
-        model = model.merge_and_unload()
-    else:
-        model=base_model
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "right"
+    print(f"#####testing with {test_type}, using model:{model_name}, using local?:{load_local}")
+    print("#### 10 epoch sft mistral model test with original prompt")
+    max_new_tokens=1024 if test_type=='fewshot' else 8
     if load_local:
         with open(local_path, 'r', encoding='utf-8') as file:
             out_list = json.load(file)
     else:
-        out_list=eval(model,tokenizer,prompts,test_type)
-    label_predict=label_mapping(out_list)
+        print("####max_new_tokens:",max_new_tokens)
+        if "llama" in model_name:
+            repetition_penalty=1.5
+        else:
+            repetition_penalty=1
+        base_model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            low_cpu_mem_usage=True,
+            return_dict=True,
+            torch_dtype=torch.float16,
+            device_map=device_map,
+            repetition_penalty=repetition_penalty,
+            attn_implementation="flash_attention_2",
+            use_auth_token=auth_token
+        )
+        if test_type=='sft':
+            PATH=new_model="/scratch/user/xishi/pdtb/coding/Mistral-7B-Instruct-v0.2-7b-pdtb2.0-epoch3-p4-fix20240323015809"
+            model = PeftModel.from_pretrained(base_model, new_model)
+            model = model.merge_and_unload()
+        else:
+            model=base_model
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
+        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.padding_side = "right"
+        
+        out_list=eval(model,tokenizer,prompts,test_type,max_new_tokens=max_new_tokens)
+        
+    label_predict=label_mapping(out_list,test_type=='fewshot')
     print_eval_result(label_predict,test_type)
+local_path_zeroshot='../output/output_cot_zeroshot0325110232.json'
+local_path_fewshot_cot='../output/output_cot_fewshot0323130628.json'
+local_path_sft='../output/m_output_sft19193127.json'
+local_path_fewshot_cot_llama='../output/output_cot_fewshot0325015406.json'
+# test_pipeline(model_mistral,prompts_cot_fewshot,"fewshot",load_local=True, local_path=local_path_fewshot_cot)
+# test_pipeline(model_zephyr,prompts_cot_fewshot,"fewshot")
+# test_pipeline(model_llama2_13b,prompts_cot_fewshot,"fewshot",True,local_path_fewshot_cot_llama)
+# test_pipeline(model_llama2_13b,prompts,"zeroshot")
+# test_pipeline(model_llama2_7b,prompts_cot_fewshot,"fewshot")
+# test_pipeline(model_llama2_7b,prompts_cot_fewshot,"fewshot")
 
-test_pipeline(model_mistral,prompts_fewshot,"fewshot")
+# test_pipeline(model_mistral,prompts,"sft")
+test_pipeline(model_llama2_7b,prompts,"zeroshot")
+
+
 # out_list_sft = eval(model,prompts,"sft")
 # out_list_zeroshot=eval(base_model,prompts,"zeroshot")
 # out_list_fewshot=eval(base_model,prompts_fewshot,"fewshot")

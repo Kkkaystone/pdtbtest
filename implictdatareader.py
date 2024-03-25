@@ -175,14 +175,17 @@ def load_pdtb(split="dev"):
 def transform_train_conversation(x):
     prompt= x['text']
     answer = x['answer']
-    return {'text':f'''### Instruction:
-Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion]
+    return {'text':f'''<s>[INST] 
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion],no need to explain
 
 ### Input:
 {prompt}
 
 ### Response:
+ [/INST]
 {answer}
+
 '''}
     
     #return {'text': f'<s> Predict the relation between Arg1 and Arg2 enclosed in <ARG1></ARG1> and <ARG2></ARG2>. relation:[Temporal, Comparison, Contingency, Expansion] \n Given the document: {prompt} relation: {answer}'}
@@ -200,7 +203,8 @@ def transform_test_conversation_cot(x):
     prompt= x['text']
     answer = x['answer']
     ### cot with summary
-    return {'text':f'''### Instruction:
+    return {'text':f'''<s>[INST] 
+### Instruction:
 Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion]
 
 ### Input:
@@ -208,18 +212,21 @@ Predict the relation between Arg1 and Arg2, just choose one or two label from :[
 
 ### Response:
 Let's think step by step, and give a summary at the end:
+ [/INST]
 '''}
 def transform_test_conversation(x):
     prompt= x['text']
     answer = x['answer']
     ### cot with summary
-    return {'text':f'''### Instruction:
-Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion]
+    return {'text':f'''<s>[INST] 
+### Instruction:
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion],no need to explain
 
 ### Input:
 {prompt}
 
 ### Response:
+ [/INST]
 '''}
 
 def transform_test_conversation_fewshot(x):
