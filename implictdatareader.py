@@ -177,7 +177,7 @@ def transform_train_conversation(x):
     answer = x['answer']
     return {'text':f'''<s>[INST] 
 ### Instruction:
-Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion],no need to explain
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
 
 ### Input:
 {prompt}
@@ -220,7 +220,7 @@ def transform_test_conversation(x):
     ### cot with summary
     return {'text':f'''<s>[INST] 
 ### Instruction:
-Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion],no need to explain
+Predict the relation between Arg1 and Arg2, just choose one or two label from :[Temporal, Comparison, Contingency, Expansion], no need to explain
 
 ### Input:
 {prompt}

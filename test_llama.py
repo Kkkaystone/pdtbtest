@@ -353,7 +353,7 @@ def print_eval_result(label_predict,test_type):
 def test_pipeline(model_name,prompts,test_type,load_local=False,local_path=None):
     print(f"#####testing with {test_type}, using model:{model_name}, using local?:{load_local}")
     print("#### 10 epoch sft mistral model test with original prompt")
-    max_new_tokens=1024 if test_type=='fewshot' else 8
+    max_new_tokens=1024 if test_type=='fewshot' else 1024
     if load_local:
         with open(local_path, 'r', encoding='utf-8') as file:
             out_list = json.load(file)
