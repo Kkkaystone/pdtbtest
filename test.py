@@ -25,33 +25,49 @@ from transformers import (
     pipeline,
     logging,
 )
-device_map = {"": 0}
+device_map = 'auto'
 
-model_name= "meta-llama/Llama-2-7b-chat-hf"
+model_name= "meta-llama/Llama-2-70b-chat-hf"
 print("####using model:", model_name)
 
 PATH=new_model="/scratch/user/xishi/pdtb/coding/llama-2-7b-pdtb2.0-epoch3-p420240317180423"
+# Activate 4-bit precision base model loading
+use_4bit = True
 
+# Compute dtype for 4-bit base models
+bnb_4bit_compute_dtype = "float16"
+
+# Quantization type (fp4 or nf4)
+bnb_4bit_quant_type = "nf4"
+use_nested_quant = False
+
+compute_dtype = getattr(torch, bnb_4bit_compute_dtype)
+
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=use_4bit,
+    bnb_4bit_quant_type=bnb_4bit_quant_type,
+    bnb_4bit_compute_dtype=compute_dtype,
+    bnb_4bit_use_double_quant=use_nested_quant,
+)
 # ## Reload model in FP16 and merge it with LoRA weights
-# base_model = AutoModelForCausalLM.from_pretrained(
-#     model_name,
-#     low_cpu_mem_usage=True,
-#     return_dict=True,
-#     torch_dtype=torch.float16,
-#     device_map=device_map,
-#     repetition_penalty=1.5,
-#     attn_implementation="flash_attention_2",
-#     use_auth_token=auth_token
-# )
+base_model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    quantization_config=bnb_config,
+    torch_dtype=torch.float16,
+    device_map=device_map,
+    repetition_penalty=1.5,
+    attn_implementation="flash_attention_2",
+    use_auth_token=auth_token
+)
 # # print("####base_model",base_model)
 # model = PeftModel.from_pretrained(base_model, new_model)
 # model = model.merge_and_unload()
 # print("####base_model",base_model)
 
 # # Load LLaMA tokenizer
-# tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
-# tokenizer.pad_token = tokenizer.eos_token
-# tokenizer.padding_side = "right"
+tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True,use_auth_token=auth_token)
+tokenizer.pad_token = tokenizer.eos_token
+tokenizer.padding_side = "right"
 
 
 #fewshot prompt:
@@ -321,7 +337,6 @@ def eval(model,prompts,test_type):
         # batch_prompts = prompts['text'][0]
         # print(batch_prompts)
         # model_inputs = tokenizer(batch_prompts, return_tensors='pt', padding=True).to('cuda')
-        # model = model.bfloat16().cuda()
         # outputs = model.generate(
         #         **model_inputs,
         #         max_new_tokens=8
@@ -336,13 +351,12 @@ def eval(model,prompts,test_type):
         for i in tqdm(range(0, len(prompts)), desc=f"{test_type} Processing "):
             batch_prompts = prompts['text'][i]
             model_inputs = tokenizer(batch_prompts, return_tensors='pt', padding=True).to('cuda')
-            model = model.bfloat16().cuda()
             outputs = model.generate(
                 **model_inputs,
                 do_sample=True,
                 temperature=0.75,
                 top_p=0.9,
-                max_new_tokens=10
+                max_new_tokens=1024
             )
             out_sentence = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             out_list += out_sentence
@@ -357,18 +371,18 @@ def eval(model,prompts,test_type):
 # out_list_zeroshot_cot=eval(base_model,prompts_cot,"zeroshot")
 # out_list_sft = eval(model,prompts,"sft")
 
-# out_list_fewshot_cot=eval(base_model,prompts_cot_fewshot,"fewshot")
-with open('../output/output_zeroshot0328110333.json', 'r', encoding='utf-8') as file:
-    out_list_zeroshot = json.load(file)
+out_list_fewshot_cot=eval(base_model,prompts_cot_fewshot,"fewshot")
+# with open('../output/output_zeroshot0328110333.json', 'r', encoding='utf-8') as file:
+#     out_list_zeroshot = json.load(file)
 
 # with open('../output/output_fewshot0318125230.json', 'r', encoding='utf-8') as file:
 #     out_list_fewshot= json.load(file)
-with open('../output/output_fewshot0327162003.json', 'r', encoding='utf-8') as file:
-    out_list_fewshot_cot= json.load(file)
+# with open('../output/output_fewshot0327162003.json', 'r', encoding='utf-8') as file:
+#     out_list_fewshot_cot= json.load(file)
 # with open('../output/output_sft0318170445.json', 'r', encoding='utf-8') as file:
 #     out_list_sft= json.load(file)
 
-label_predict_zeroshot=label_mapping(out_list_zeroshot)
+# label_predict_zeroshot=label_mapping(out_list_zeroshot)
 
 # label_predict_zeroshot_cot=label_mapping(out_list_zeroshot_cot)
 label_predict_fewshot_cot=label_mapping(out_list_fewshot_cot,True)
@@ -387,7 +401,7 @@ def print_eval_result(label_predict,test_type):
     print("f1_none"+"_"+test_type,f1_none)
     print("accuracy_score"+'_'+test_type,accuracy_score(label_true, label_predict))
 
-print_eval_result(label_predict_zeroshot,"zeroshot")
+# print_eval_result(label_predict_zeroshot,"zeroshot")
 
 # print_eval_result(label_predict_zeroshot_cot,"zeroshot")
 print_eval_result(label_predict_fewshot_cot,"fewshot_cot")

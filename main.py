@@ -153,7 +153,7 @@ max_seq_length = None
 packing = False
 
 # Load the entire model on the GPU 0
-device_map = {"": 0}
+device_map = 'auto'
 
 # Load dataset (you can process it here)
 # dataset = load_dataset(dataset_name, split="train")
